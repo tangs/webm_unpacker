@@ -318,6 +318,46 @@ namespace xx {
             });
         }
 
+        std::vector<uint8_t> DecodeFrame(int frame, vpx_codec_ctx_t& ctx, vpx_codec_ctx_t& ctxAlpha) {
+            std::vector<uint8_t> bytes;
+            uint8_t const* rgbBuf = nullptr, * aBuf = nullptr;
+            uint32_t rgbBufLen = 0, aBufLen = 0;
+
+            if (this->hasAlpha) {
+                if (int r = this->GetFrameBuf(frame, rgbBuf, rgbBufLen, aBuf, aBufLen)) assert(false);
+                if (int r = vpx_codec_decode(&ctx, rgbBuf, rgbBufLen, nullptr, 0)) assert(false);
+                if (int r = vpx_codec_decode(&ctxAlpha, aBuf, aBufLen, nullptr, 0)) assert(false);
+
+                vpx_codec_iter_t iterator = nullptr;
+                auto&& imgRGB = vpx_codec_get_frame(&ctx, &iterator);
+                if (!imgRGB || imgRGB->fmt != VPX_IMG_FMT_I420) assert(false);
+                if (imgRGB->stride[1] != imgRGB->stride[2]) assert(false);
+
+                iterator = nullptr;
+                auto&& imgA = vpx_codec_get_frame(&ctxAlpha, &iterator);
+                if (!imgA || imgA->fmt != VPX_IMG_FMT_I420) assert(false);
+                if (imgA->stride[0] != imgRGB->stride[0]) assert(false);
+
+                if (int r = Yuva2Rgba(bytes, this->width, this->height
+                        , imgRGB->planes[0], imgRGB->planes[1], imgRGB->planes[2], imgA->planes[0]
+                        , imgRGB->stride[0], imgRGB->stride[1])) assert(false);
+            }
+            else {
+                if (int r = this->GetFrameBuf(frame, rgbBuf, rgbBufLen)) assert(false);
+                if (int r = vpx_codec_decode(&ctx, rgbBuf, rgbBufLen, nullptr, 0)) assert(false);
+
+                vpx_codec_iter_t iterator = nullptr;
+                auto&& imgRGB = vpx_codec_get_frame(&ctx, &iterator);
+                if (!imgRGB || imgRGB->fmt != VPX_IMG_FMT_I420) assert(false);
+                if (imgRGB->stride[1] != imgRGB->stride[2]) assert(false);
+
+                if (int r = Yuva2Rgba(bytes, this->width, this->height
+                        , imgRGB->planes[0], imgRGB->planes[1], imgRGB->planes[2], nullptr
+                        , imgRGB->stride[0], imgRGB->stride[1])) assert(false);
+            }
+            return bytes;
+        }
+
         // f = [](std::vector<uint8_t> const& bytes)->int { ... }
         template<typename F>
         inline int ForeachFrame(F&& f) {

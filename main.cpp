@@ -32,8 +32,16 @@ int main() {
     ifs.read(pChars, length);
     ifs.close();
 
-    auto ptr = decode_webm_by_data((u_int8_t*)pChars, length);
-
+//    auto ptr = decode_webm_by_data((u_int8_t*)pChars, length);
+    auto ptr = create_webm_decoder((u_int8_t*)pChars, length);
+    assert(ptr);
+    init_decoder(ptr);
+    auto frameCount = frames_count(ptr);
+    for (auto i = 0; i < frameCount; ++i) {
+        decode_frame(ptr, i);
+    }
+    auto pngCount = png_count(ptr);
+    destroy_decoder(ptr);
     delete[] pChars;
 
     return 0;
