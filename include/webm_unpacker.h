@@ -3,6 +3,9 @@
 #include <cstdlib>
 
 extern "C" {
+    typedef void (*log_cb)(const char*);
+
+    void set_debug_log_cb(log_cb cb);
     void* decode_webm(const char *webmPath);
     void* decode_webm_by_data(u_int8_t* data, int len);
     void release_webm(void* ptr);

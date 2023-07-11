@@ -8,6 +8,18 @@ struct WebmInfo {
     std::vector<std::vector<u_int8_t>> pngs;
 };
 
+static void* print_cb;
+
+void set_debug_log_cb(log_cb cb) {
+    print_cb = (void*)cb;
+}
+
+void print_log(const std::string& log)
+{
+    if (print_cb == nullptr) return;
+    ((log_cb)print_cb)(log.c_str());
+}
+
 void* decode_webm(const char *webmPath) {
     auto webmInfo = new WebmInfo();
     auto& webm = webmInfo->webm;

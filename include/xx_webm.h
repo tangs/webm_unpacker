@@ -52,6 +52,10 @@ webm 打包命令行:
 #include "vpx_decoder.h"
 #include "vp8dx.h"
 
+#include "chrono"
+
+extern void print_log(const std::string& log);
+
 namespace xx {
     // webm 解析后的容易使用的存储形态
     struct Webm {
@@ -338,27 +342,62 @@ namespace xx {
                     vpx_codec_destroy(&ctxAlpha);
                 });
 
+                auto timeStart = std::chrono::steady_clock::now();
                 for (uint32_t i = 0; i < this->count; ++i) {
+//                    auto time1 = std::chrono::steady_clock::now();
                     if (int r = this->GetFrameBuf(i, rgbBuf, rgbBufLen, aBuf, aBufLen)) return r;
 
                     if (int r = vpx_codec_decode(&ctx, rgbBuf, rgbBufLen, nullptr, 0)) return __LINE__;
+//                    auto time11 = std::chrono::steady_clock::now();
                     if (int r = vpx_codec_decode(&ctxAlpha, aBuf, aBufLen, nullptr, 0)) return __LINE__;
 
+//                    auto time2 = std::chrono::steady_clock::now();
                     vpx_codec_iter_t iterator = nullptr;
                     auto&& imgRGB = vpx_codec_get_frame(&ctx, &iterator);
                     if (!imgRGB || imgRGB->fmt != VPX_IMG_FMT_I420) return __LINE__;
                     if (imgRGB->stride[1] != imgRGB->stride[2]) return __LINE__;
 
+//                    auto time3 = std::chrono::steady_clock::now();
                     iterator = nullptr;
                     auto&& imgA = vpx_codec_get_frame(&ctxAlpha, &iterator);
                     if (!imgA || imgA->fmt != VPX_IMG_FMT_I420) return __LINE__;
                     if (imgA->stride[0] != imgRGB->stride[0]) return __LINE__;
 
+//                    auto time4 = std::chrono::steady_clock::now();
                     if (int r = Yuva2Rgba(bytes, this->width, this->height
                             , imgRGB->planes[0], imgRGB->planes[1], imgRGB->planes[2], imgA->planes[0]
                             , imgRGB->stride[0], imgRGB->stride[1])) return __LINE__;
+//                    auto time5 = std::chrono::steady_clock::now();
+
                     if (int r = f(bytes)) return r;
+
+//                    auto time6 = std::chrono::steady_clock::now();
+//                    auto duration11 = std::chrono::duration_cast<std::chrono::microseconds>(time11 - time1);
+//                    auto duration12 = std::chrono::duration_cast<std::chrono::microseconds>(time2 - time11);
+//                    auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(time2 - time1);
+//                    auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>(time3 - time2);
+//                    auto duration3 = std::chrono::duration_cast<std::chrono::microseconds>(time4 - time3);
+//                    auto duration4 = std::chrono::duration_cast<std::chrono::microseconds>(time5 - time4);
+//                    auto duration5 = std::chrono::duration_cast<std::chrono::microseconds>(time6 - time5);
+//                    auto duration6 = std::chrono::duration_cast<std::chrono::microseconds>(time6 - time1);
+//                    std::stringstream  ss;
+//                    ss << "use time:" << i
+//                            << ", " << duration11.count()
+//                            << ", " << duration12.count()
+//                            << ", " << duration1.count()
+//                            << ", " << duration2.count()
+//                            << ", " << duration3.count()
+//                            << ", " << duration4.count()
+//                            << ", " << duration5.count()
+//                            << ", " << duration6.count()
+//                            << std::endl;
+//                    print_log(ss.str());
                 }
+                auto timeEnd = std::chrono::steady_clock::now();
+                auto decodeDuration = std::chrono::duration_cast<std::chrono::microseconds>(timeEnd - timeStart);
+                std::stringstream ss1;
+                ss1 << "decode ues time:" << decodeDuration.count() << ", frame count: " << this->count;
+                print_log(ss1.str());
             }
             else {
                 for (uint32_t i = 0; i < this->count; ++i) {
@@ -398,13 +437,13 @@ namespace xx {
             for (uint32_t _h = 0; _h < h; ++_h) {
                 for (uint32_t _w = 0; _w < w; ++_w) {
                     // 根据坐标结合具体宽高跨距算下标. uv 每个像素对应 ya 4个像素
-                    auto&& yaIdx = yaStride * _h + _w;
-                    auto&& uvIdx = uvStride * (_h / 2) + _w / 2;
+                    auto yaIdx = yaStride * _h + _w;
+                    auto uvIdx = uvStride * (_h / 2) + _w / 2;
 
                     // 得到 yuv 原始数据, byte -> float
-                    auto&& y = yData[yaIdx] / 255.0f;
-                    auto&& u = uData[uvIdx] / 255.0f;
-                    auto&& v = vData[uvIdx] / 255.0f;
+                    auto y = yData[yaIdx] / 255.0f;
+                    auto u = uData[uvIdx] / 255.0f;
+                    auto v = vData[uvIdx] / 255.0f;
 
                     // 进一步修正
                     y = 1.1643f * (y - 0.0625f);
@@ -412,9 +451,9 @@ namespace xx {
                     v = v - 0.5f;
 
                     // 算出 rgb( float 版 )
-                    auto&& r = y + 1.5958f * v;
-                    auto&& g = y - 0.39173f * u - 0.81290f * v;
-                    auto&& b = y + 2.017f * u;
+                    auto r = y + 1.5958f * v;
+                    auto g = y - 0.39173f * u - 0.81290f * v;
+                    auto b = y + 2.017f * u;
 
                     // 裁剪为 0 ~ 1
                     if (r > 1.0f) r = 1.0f; else if (r < 0.0f) r = 0.0f;

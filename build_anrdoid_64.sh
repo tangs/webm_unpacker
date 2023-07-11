@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 
+rm -rf build/android/arm64-v8a
 mkdir -p build/android/arm64-v8a
 cd build/android/arm64-v8a || exit 1
 
