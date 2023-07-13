@@ -35,7 +35,9 @@ int main() {
 //    auto ptr = decode_webm_by_data((u_int8_t*)pChars, length);
     auto ptr = create_webm_decoder((u_int8_t*)pChars, length);
     assert(ptr);
-    init_decoder(ptr);
+    while (!is_load_finish(ptr)) std::this_thread::sleep_for(10ms);
+
+//    init_decoder(ptr);
     auto frameCount = frames_count(ptr);
     for (auto i = 0; i < frameCount; ++i) {
         decode_frame(ptr, i);

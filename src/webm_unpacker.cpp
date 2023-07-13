@@ -2,11 +2,13 @@
 
 #include "xx_webm.h"
 #include "svpng.inc"
+#include "vpx_codec.h"
+#include "vpx_codec_internal.h"
 
 struct WebmInfo {
     struct xx::Webm webm;
     std::vector<std::vector<u_int8_t>> pngs;
-    vpx_codec_iface_t* iface = nullptr;
+    vpx_codec_iface iface;
     vpx_codec_dec_cfg_t cfg;
     vpx_codec_ctx_t ctx;
     vpx_codec_ctx_t ctxAlpha;
@@ -14,6 +16,9 @@ struct WebmInfo {
     uint8_t const* aBuf = nullptr;
     uint32_t rgbBufLen = 0;
     uint32_t aBufLen = 0;
+    bool loadFinish = false;
+    int loadErrCode = 0;
+//    std::thread loadThread;
 };
 
 static void* print_cb;
@@ -22,8 +27,7 @@ void set_debug_log_cb(log_cb cb) {
     print_cb = (void*)cb;
 }
 
-void print_log(const std::string& log)
-{
+void print_log(const std::string& log) {
     if (print_cb == nullptr)
     {
         std::cout << "webm log:" << log << std::endl;
@@ -32,24 +36,24 @@ void print_log(const std::string& log)
     ((log_cb)print_cb)(log.c_str());
 }
 
-void init_decoder(void* ptr)
-{
+int init_decoder(void* ptr) {
     auto info = (WebmInfo*)ptr;
     auto& webm = info->webm;
 
     assert(webm.codecId);
     info->cfg = {1, webm.width, webm.height};
-    info->iface = vpx_codec_vp9_dx();
-    if (int r = vpx_codec_dec_init(&info->ctx, info->iface, &info->cfg, 0)) assert(false);
+    auto iface = (vpx_codec_iface*)vpx_codec_vp9_dx();
+    info->iface = *iface;
+    if (int r = vpx_codec_dec_init(&info->ctx, &info->iface, &info->cfg, 0)) return 10000 + r;
 //    if (int r = vpx_codec_decode(&info->ctx, info->rgbBuf, info->rgbBufLen, nullptr, 0)) assert(false);
     if (webm.hasAlpha) {
-        if (int r = vpx_codec_dec_init(&info->ctxAlpha, info->iface, &info->cfg, 0)) assert(false);
+        if (int r = vpx_codec_dec_init(&info->ctxAlpha, &info->iface, &info->cfg, 0)) return 20000 + r;
 //        if (int r = vpx_codec_decode(&info->ctxAlpha, info->aBuf, info->aBufLen, nullptr, 0)) assert(false);
     }
+    return 0;
 }
 
-void destroy_decoder(void* ptr)
-{
+void destroy_decoder(void* ptr) {
     auto info = (WebmInfo*)ptr;
     auto& webm = info->webm;
 
@@ -59,21 +63,57 @@ void destroy_decoder(void* ptr)
     }
 }
 
-void* create_webm_decoder(u_int8_t* data, int len) {
+void load_webm(WebmInfo* info, u_int8_t* data, int len) {
     auto result = std::make_unique<std::uint8_t[]>(len);
     memcpy(result.get(), data, len);
 
-    auto webmInfo = new WebmInfo();
-    auto& webm = webmInfo->webm;
-    int r = webm.LoadFromWebm(std::move(result), len);
-    if (r) {
+    auto& webm = info->webm;
+//    int r = webm.LoadFromWebm(std::move(result), len);
+    if (int r = webm.LoadFromWebm(std::move(result), len)) {
         std::stringstream ss;
         ss << "load from webm fail: " << r;
         print_log(ss.str());
-        return nullptr;
-    }
 
+        info->loadErrCode = r;
+        info->loadFinish = true;
+        return;
+    }
+    if (int r = init_decoder((void*)info)) {
+        info->loadErrCode = r;
+        info->loadFinish = true;
+        return;
+    }
+    info->loadErrCode = 0;
+    info->loadFinish = true;
+}
+
+void* create_webm_decoder(u_int8_t* data, int len) {
+//    auto result = std::make_unique<std::uint8_t[]>(len);
+//    memcpy(result.get(), data, len);
+
+    auto webmInfo = new WebmInfo();
+//    auto& webm = webmInfo->webm;
+//    webmInfo->loadThread = std::thread(load_webm, webmInfo, data, len);
+    auto load = std::thread(load_webm, webmInfo, data, len);
+//    int r = webm.LoadFromWebm(std::move(result), len);
+//    if (r) {
+//        std::stringstream ss;
+//        ss << "load from webm fail: " << r;
+//        print_log(ss.str());
+//        return nullptr;
+//    }
+    load.detach();
     return (void*)webmInfo;
+}
+
+bool is_load_finish(void* ptr) {
+    auto webmInfo = (WebmInfo*)ptr;
+    return webmInfo->loadFinish;
+}
+
+int load_err_code(void* ptr) {
+    auto webmInfo = (WebmInfo*)ptr;
+    return webmInfo->loadErrCode;
 }
 
 void decode_frame(void* ptr, int frame) {
@@ -141,6 +181,11 @@ int frames_count(void* ptr) {
     return (int)info->webm.count;
 }
 
+int abi_version(void* ptr) {
+    auto info = (WebmInfo*)ptr;
+    return info->iface.abi_version;
+}
+
 int png_count(void* ptr) {
     auto info = (WebmInfo*)ptr;
     return (int)info->pngs.size();
@@ -167,8 +212,6 @@ int get_frame_data_size(void* ptr, int frame)
     return (int)info->pngs[frame].size();
 }
 
-
-
 int unpack_webm(const char* webmPath, const char* outPath, const char* prefix) {
     struct xx::Webm webm;
     int r = webm.LoadFromWebmWithPath(webmPath);
@@ -181,7 +224,6 @@ int unpack_webm(const char* webmPath, const char* outPath, const char* prefix) {
     }
     return 0;
 }
-
 
 int unpack_webm1(u_int8_t *data, int size, const char *outPath, const char *prefix) {
     auto result = std::make_unique<std::uint8_t[]>(size);

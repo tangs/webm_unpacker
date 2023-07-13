@@ -4,6 +4,7 @@ project(webm_unpacker)
 include_directories(
         include
         libvpx/include
+        ../../Documents/libvpx_prebuilt/gnusrc/vpx/internal
 )
 
 if(ANDROID_64)
@@ -15,9 +16,10 @@ elseif(ANDROID_32)
             libvpx/lib/android/armeabi-v7a
     )
 elseif(IOS)
-    link_directories(
-            libvpx/lib/ios
-    )
+#    link_directories(
+#            libvpx/lib/ios
+#    )
+    add_subdirectory(third/libvpx_prebuilt/gnusrc)
 else()
     link_directories(
             libvpx/lib/osx
@@ -43,10 +45,10 @@ if (IOS)
             src/webm_unpacker.cpp
             )
 else ()
-    add_library(webm_unpacker SHARED
-            src/webm_unpacker.cpp)
-#    add_executable(webm_unpacker
-#            main.cpp
+#    add_library(webm_unpacker SHARED
 #            src/webm_unpacker.cpp)
+    add_executable(webm_unpacker
+            main.cpp
+            src/webm_unpacker.cpp)
 endif ()
 target_link_libraries(webm_unpacker vpxgnu)
