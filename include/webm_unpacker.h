@@ -6,8 +6,9 @@ extern "C" {
     typedef void (*log_cb)(const char*);
 
     void set_debug_log_cb(log_cb cb);
-    void* create_webm_decoder(u_int8_t* data, int len);
+    void* create_webm_decoder(u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount);
     bool is_load_finish(void* ptr);
+    bool is_frame_load_finish(void* ptr, int frame);
     int load_err_code(void* ptr);
     int init_decoder(void* ptr);
     void destroy_decoder(void* ptr);

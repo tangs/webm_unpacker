@@ -310,7 +310,7 @@ namespace xx {
         // 每帧画面另存为 png 文件。
         inline int SaveToPngs(std::filesystem::path const& path, std::string const& prefix) {
             uint32_t i = 0;
-            return ForeachFrame([&](std::vector<uint8_t> const& bytes)->int {
+            return ForeachFrame([&](std::vector<uint8_t> const& bytes, int index)->int {
                 auto&& fn = path / (prefix + std::to_string(i) + ".png");
                 if (int r = RgbaSaveToPng(fn, bytes.data(), this->width, this->height)) return __LINE__;
                 ++i;
@@ -409,7 +409,7 @@ namespace xx {
                             , imgRGB->stride[0], imgRGB->stride[1])) return __LINE__;
 //                    auto time5 = std::chrono::steady_clock::now();
 
-                    if (int r = f(bytes)) return r;
+                    if (int r = f(bytes, i)) return r;
 
 //                    auto time6 = std::chrono::steady_clock::now();
 //                    auto duration11 = std::chrono::duration_cast<std::chrono::microseconds>(time11 - time1);
@@ -453,7 +453,7 @@ namespace xx {
                     if (int r = Yuva2Rgba(bytes, this->width, this->height
                             , imgRGB->planes[0], imgRGB->planes[1], imgRGB->planes[2], nullptr
                             , imgRGB->stride[0], imgRGB->stride[1])) return __LINE__;
-                    if (int r = f(bytes)) return r;
+                    if (int r = f(bytes, i)) return r;
                 }
             }
 
@@ -616,7 +616,7 @@ namespace xx {
             int numRows = sh / height;
             int numCols = sw / width;
             int x = 0, y = 0, z = 0;
-            int r = ForeachFrame([&](std::vector<uint8_t> const& bytes)->int {
+            int r = ForeachFrame([&](std::vector<uint8_t> const& bytes, int index)->int {
                 Draw(space.data(), sw, sh, (uint32_t*)bytes.data(), width, height, x * width, y * height);
                 pm.Append(itemPrefix + std::to_string(itemBeginNum) + itemSuffix, width, height, x * width, y * height);
                 ++itemBeginNum;

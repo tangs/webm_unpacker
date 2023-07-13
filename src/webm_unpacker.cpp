@@ -8,6 +8,7 @@
 struct WebmInfo {
     struct xx::Webm webm;
     std::vector<std::vector<u_int8_t>> pngs;
+    std::vector<bool> frameLoaded;
     vpx_codec_iface iface;
     vpx_codec_dec_cfg_t cfg;
     vpx_codec_ctx_t ctx;
@@ -63,7 +64,14 @@ void destroy_decoder(void* ptr) {
     }
 }
 
-void load_webm(WebmInfo* info, u_int8_t* data, int len) {
+void load_frame(WebmInfo* info, int threadIndex, int threadCount) {
+    auto count = (int)info->webm.count;
+    for (auto i = threadIndex; i < count; i += threadCount) {
+        decode_frame(info, i);
+    }
+}
+
+void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     auto result = std::make_unique<std::uint8_t[]>(len);
     memcpy(result.get(), data, len);
 
@@ -83,25 +91,39 @@ void load_webm(WebmInfo* info, u_int8_t* data, int len) {
         info->loadFinish = true;
         return;
     }
+
+    auto count = webm.count;
+    info->pngs.resize(count);
+    info->frameLoaded.resize(count, false);
+
     info->loadErrCode = 0;
     info->loadFinish = true;
+    if (loadFrames) {
+//        std::vector<std::thread> threads(loadFramesThreadCount);
+//        for (auto i = 0; i < loadFramesThreadCount; ++i) {
+//            threads[i] = std::thread(load_frame, info, i, loadFramesThreadCount);
+//        }
+//        for (auto& thread: threads) {
+//            thread.join();
+//        }
+        xx::Data d;
+        webm.ForeachFrame([info, &webm, &d](std::vector<uint8_t> const& bytes, int index)->int {
+//            xx::Data d;
+            d.Clear();
+            svpng(d, webm.width, webm.height, bytes.data(), 1);
+            std::vector<u_int8_t> png;
+            png.resize(d.len);
+            memcpy(png.data(), d.buf, d.len);
+            info->frameLoaded[index] = true;
+            info->pngs[index] = std::move(png);
+            return 0;
+        });
+    }
 }
 
-void* create_webm_decoder(u_int8_t* data, int len) {
-//    auto result = std::make_unique<std::uint8_t[]>(len);
-//    memcpy(result.get(), data, len);
-
+void* create_webm_decoder(u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     auto webmInfo = new WebmInfo();
-//    auto& webm = webmInfo->webm;
-//    webmInfo->loadThread = std::thread(load_webm, webmInfo, data, len);
-    auto load = std::thread(load_webm, webmInfo, data, len);
-//    int r = webm.LoadFromWebm(std::move(result), len);
-//    if (r) {
-//        std::stringstream ss;
-//        ss << "load from webm fail: " << r;
-//        print_log(ss.str());
-//        return nullptr;
-//    }
+    auto load = std::thread(load_webm, webmInfo, data, len, loadFrames, loadFramesThreadCount);
     load.detach();
     return (void*)webmInfo;
 }
@@ -109,6 +131,11 @@ void* create_webm_decoder(u_int8_t* data, int len) {
 bool is_load_finish(void* ptr) {
     auto webmInfo = (WebmInfo*)ptr;
     return webmInfo->loadFinish;
+}
+
+bool is_frame_load_finish(void* ptr, int frame) {
+    auto webmInfo = (WebmInfo*)ptr;
+    return webmInfo->frameLoaded[frame];
 }
 
 int load_err_code(void* ptr) {
@@ -125,7 +152,9 @@ void decode_frame(void* ptr, int frame) {
     std::vector<u_int8_t> png;
     png.resize(d.len);
     memcpy(png.data(), d.buf, d.len);
-    webmInfo->pngs.push_back(std::move(png));
+//    webmInfo->pngs.push_back(std::move(png));
+    webmInfo->pngs[frame] = std::move(png);
+    webmInfo->frameLoaded[frame] = true;
 }
 
 void* decode_webm(const char *webmPath) {
@@ -135,7 +164,7 @@ void* decode_webm(const char *webmPath) {
     if (r) {
         return nullptr;
     }
-    webm.ForeachFrame([&](std::vector<uint8_t> const& bytes)->int {
+    webm.ForeachFrame([&](std::vector<uint8_t> const& bytes, int index)->int {
         xx::Data d;
         svpng(d, webm.width, webm.height, bytes.data(), 1);
         std::vector<u_int8_t> png;
@@ -160,7 +189,7 @@ void* decode_webm_by_data(u_int8_t* data, int len) {
         print_log(ss.str());
         return nullptr;
     }
-    webm.ForeachFrame([webmInfo, &webm](std::vector<uint8_t> const& bytes)->int {
+    webm.ForeachFrame([webmInfo, &webm](std::vector<uint8_t> const& bytes, int index)->int {
         xx::Data d;
         svpng(d, webm.width, webm.height, bytes.data(), 1);
         std::vector<u_int8_t> png;

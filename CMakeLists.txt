@@ -45,10 +45,10 @@ if (IOS)
             src/webm_unpacker.cpp
             )
 else ()
-#    add_library(webm_unpacker SHARED
-#            src/webm_unpacker.cpp)
-    add_executable(webm_unpacker
-            main.cpp
+    add_library(webm_unpacker SHARED
             src/webm_unpacker.cpp)
+#    add_executable(webm_unpacker
+#            main.cpp
+#            src/webm_unpacker.cpp)
 endif ()
 target_link_libraries(webm_unpacker vpxgnu)
