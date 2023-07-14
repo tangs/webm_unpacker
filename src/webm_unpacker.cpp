@@ -1,5 +1,7 @@
 #include "webm_unpacker.h"
 
+#include <chrono>
+
 #include "xx_webm.h"
 #include "svpng.inc"
 #include "vpx_codec.h"
@@ -64,19 +66,25 @@ void destroy_decoder(void* ptr) {
     }
 }
 
-void load_frame(WebmInfo* info, int threadIndex, int threadCount) {
-    auto count = (int)info->webm.count;
-    for (auto i = threadIndex; i < count; i += threadCount) {
-        decode_frame(info, i);
-    }
+std::vector<u_int8_t> decode_frame(struct xx::Webm& webm, vpx_codec_ctx_t& ctx,
+        vpx_codec_ctx_t& ctxAlpha, int frame) {
+    auto bytes = webm.DecodeFrame(frame, ctx, ctxAlpha);
+    xx::Data d;
+    svpng(d, webm.width, webm.height, bytes.data(), 1);
+    std::vector<u_int8_t> png;
+    png.resize(d.len);
+    memcpy(png.data(), d.buf, d.len);
+    return png;
 }
 
-void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
+int load_frame(WebmInfo* webmInfoCtx, u_int8_t* data, int len, int threadIndex, int threadCount) {
+//    auto info = std::make_unique<WebmInfo>();
+    WebmInfo webmInfo;
+    auto info = &webmInfo;
+    auto& webm = info->webm;
     auto result = std::make_unique<std::uint8_t[]>(len);
     memcpy(result.get(), data, len);
 
-    auto& webm = info->webm;
-//    int r = webm.LoadFromWebm(std::move(result), len);
     if (int r = webm.LoadFromWebm(std::move(result), len)) {
         std::stringstream ss;
         ss << "load from webm fail: " << r;
@@ -84,40 +92,100 @@ void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loa
 
         info->loadErrCode = r;
         info->loadFinish = true;
-        return;
+        return r + 1000;
     }
-    if (int r = init_decoder((void*)info)) {
+    if (int r = init_decoder(info)) {
         info->loadErrCode = r;
         info->loadFinish = true;
-        return;
+        return r + 2000;
     }
 
-    auto count = webm.count;
-    info->pngs.resize(count);
-    info->frameLoaded.resize(count, false);
+    std::cout << "start:" << threadIndex << std::endl;
+    auto count = (int)info->webm.count;
+    for (auto i = 0; i < count; i++) {
+        if (i % threadCount != threadIndex) {
+            webm.SkipFrame(i, info->ctx, info->ctxAlpha);
+            continue;
+        }
+        webmInfoCtx->pngs[i] = decode_frame(webm, info->ctx, info->ctxAlpha, i);
+        webmInfoCtx->frameLoaded[i] = true;
+    }
+    return 0;
+}
 
-    info->loadErrCode = 0;
-    info->loadFinish = true;
+int init_load_webm(WebmInfo* info, u_int8_t* data, int len) {
+    auto result = std::make_unique<std::uint8_t[]>(len);
+    memcpy(result.get(), data, len);
+    if (int r = info->webm.LoadFromWebm(std::move(result), len)) {
+        std::stringstream ss;
+        ss << "load from webm fail: " << r;
+        print_log(ss.str());
+        return r + 1000;
+    }
+    if (int r = init_decoder(info)) {
+        return r + 2000;
+    }
+    return 0;
+}
+
+void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     if (loadFrames) {
-//        std::vector<std::thread> threads(loadFramesThreadCount);
-//        for (auto i = 0; i < loadFramesThreadCount; ++i) {
-//            threads[i] = std::thread(load_frame, info, i, loadFramesThreadCount);
-//        }
-//        for (auto& thread: threads) {
-//            thread.join();
-//        }
-        xx::Data d;
-        webm.ForeachFrame([info, &webm, &d](std::vector<uint8_t> const& bytes, int index)->int {
+        auto time1 = std::chrono::steady_clock::now();
+        if (loadFramesThreadCount > 1) {
+            auto& webm = info->webm;
+            if (int r = init_load_webm(info, data, len)) {
+                info->loadErrCode = r;
+            }
+
+            auto count = webm.count;
+            info->pngs.resize(count);
+            info->frameLoaded.resize(count, false);
+            info->loadFinish = true;
+
+            std::vector<std::thread> threads(loadFramesThreadCount);
+            for (auto i = 0; i < loadFramesThreadCount; ++i) {
+                threads[i] = std::thread(load_frame, info, data, len, i, loadFramesThreadCount);
+                threads[i].detach();
+            }
+//            for (auto& thread: threads) {
+//                thread.join();
+//            }
+//            for (auto i = 0; i < (int)count; i++) {
+//                if (!info->frameLoaded[i]) {
+//                    std::this_thread::sleep_for(1ms);
+//                }
+//            }
+        } else {
+//            init_decoder(info);
+            if (int r = init_load_webm(info, data, len)) {
+                info->loadErrCode = r;
+            } else {
+                info->loadErrCode = 0;
+            }
+            info->loadFinish = true;
+            
+            auto& webm = info->webm;
+            auto count = webm.count;
+            info->pngs.resize(count);
+            info->frameLoaded.resize(count, false);
+
+            xx::Data d;
+            webm.ForeachFrame([info, &webm, &d](std::vector<uint8_t> const& bytes, int index)->int {
 //            xx::Data d;
-            d.Clear();
-            svpng(d, webm.width, webm.height, bytes.data(), 1);
-            std::vector<u_int8_t> png;
-            png.resize(d.len);
-            memcpy(png.data(), d.buf, d.len);
-            info->frameLoaded[index] = true;
-            info->pngs[index] = std::move(png);
-            return 0;
-        });
+                d.Clear();
+                svpng(d, webm.width, webm.height, bytes.data(), 1);
+                std::vector<u_int8_t> png;
+                png.resize(d.len);
+                memcpy(png.data(), d.buf, d.len);
+                info->frameLoaded[index] = true;
+                info->pngs[index] = std::move(png);
+                return 0;
+            });
+        }
+        auto time2 = std::chrono::steady_clock::now();
+        auto duration11 = std::chrono::duration_cast<std::chrono::microseconds>(time2- time1);
+        std::cout << "load webm frame: use " << duration11.count()
+        << " microseconds, threads count: " << loadFramesThreadCount << std::endl;
     }
 }
 

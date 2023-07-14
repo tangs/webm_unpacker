@@ -318,6 +318,16 @@ namespace xx {
             });
         }
 
+        void SkipFrame(int frame, vpx_codec_ctx_t& ctx, vpx_codec_ctx_t& ctxAlpha) {
+            uint8_t const* rgbBuf = nullptr, * aBuf = nullptr;
+            uint32_t rgbBufLen = 0, aBufLen = 0;
+            if (this->hasAlpha) {
+                if (int r = this->GetFrameBuf(frame, rgbBuf, rgbBufLen, aBuf, aBufLen)) assert(false);
+                if (int r = vpx_codec_decode(&ctx, rgbBuf, rgbBufLen, nullptr, 0)) assert(false);
+                if (int r = vpx_codec_decode(&ctxAlpha, aBuf, aBufLen, nullptr, 0)) assert(false);
+            }
+        }
+
         std::vector<uint8_t> DecodeFrame(int frame, vpx_codec_ctx_t& ctx, vpx_codec_ctx_t& ctxAlpha) {
             std::vector<uint8_t> bytes;
             uint8_t const* rgbBuf = nullptr, * aBuf = nullptr;

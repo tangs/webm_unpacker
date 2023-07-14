@@ -35,17 +35,29 @@ int main() {
 
 //    auto ptr = decode_webm_by_data((u_int8_t*)pChars, length);
     auto ptr = create_webm_decoder((u_int8_t*)pChars, length, true, 4);
+    auto ptr1 = create_webm_decoder((u_int8_t*)pChars, length, true, 1);
     assert(ptr);
+    assert(ptr1);
     while (!is_load_finish(ptr)) std::this_thread::sleep_for(10ms);
+    while (!is_load_finish(ptr1)) std::this_thread::sleep_for(10ms);
 
 //    init_decoder(ptr);
     auto frameCount = frames_count(ptr);
+    auto frameCount1 = frames_count(ptr1);
     for (auto i = 0; i < frameCount; ++i) {
-        while (!is_frame_load_finish(ptr, i)) ;
-//        decode_frame(ptr, i);
+        while (!is_frame_load_finish(ptr, i)) std::this_thread::sleep_for(10ms);
+        while (!is_frame_load_finish(ptr1, i)) std::this_thread::sleep_for(10ms);
+        auto size1 = get_frame_data_size(ptr, i);
+        auto size2 = get_frame_data_size(ptr1, i);
+        assert(size1 == size2);
+        auto frameData1 = get_frame_data(ptr, i);
+        auto frameData2 = get_frame_data(ptr1, i);
+        assert(strncmp((char*)frameData1, (char*)frameData2, size1) == 0);
     }
     auto pngCount = png_count(ptr);
+    auto pngCount1 = png_count(ptr);
     destroy_decoder(ptr);
+    destroy_decoder(ptr1);
     delete[] pChars;
 
     return 0;
