@@ -1,17 +1,12 @@
 #include "webm_unpacker.h"
 
-#include <chrono>
-
 #include "xx_webm.h"
-#include "svpng.inc"
-#include "vpx_codec.h"
-#include "vpx_codec_internal.h"
 
 struct WebmInfo {
     struct xx::Webm webm;
-    std::vector<std::vector<u_int8_t>> pngs;
+    std::vector<std::vector<uint8_t>> pngs;
     std::vector<bool> frameLoaded;
-    vpx_codec_iface iface;
+    vpx_codec_iface* iface;
     vpx_codec_dec_cfg_t cfg;
     vpx_codec_ctx_t ctx;
     vpx_codec_ctx_t ctxAlpha;
@@ -46,11 +41,11 @@ int init_decoder(void* ptr) {
     assert(webm.codecId);
     info->cfg = {1, webm.width, webm.height};
     auto iface = (vpx_codec_iface*)vpx_codec_vp9_dx();
-    info->iface = *iface;
-    if (int r = vpx_codec_dec_init(&info->ctx, &info->iface, &info->cfg, 0)) return 10000 + r;
+    info->iface = iface;
+    if (int r = vpx_codec_dec_init(&info->ctx, info->iface, &info->cfg, 0)) return 10000 + r;
 //    if (int r = vpx_codec_decode(&info->ctx, info->rgbBuf, info->rgbBufLen, nullptr, 0)) assert(false);
     if (webm.hasAlpha) {
-        if (int r = vpx_codec_dec_init(&info->ctxAlpha, &info->iface, &info->cfg, 0)) return 20000 + r;
+        if (int r = vpx_codec_dec_init(&info->ctxAlpha, info->iface, &info->cfg, 0)) return 20000 + r;
 //        if (int r = vpx_codec_decode(&info->ctxAlpha, info->aBuf, info->aBufLen, nullptr, 0)) assert(false);
     }
     return 0;
@@ -66,18 +61,18 @@ void destroy_decoder(void* ptr) {
     }
 }
 
-std::vector<u_int8_t> decode_frame(struct xx::Webm& webm, vpx_codec_ctx_t& ctx,
+std::vector<uint8_t> decode_frame(struct xx::Webm& webm, vpx_codec_ctx_t& ctx,
         vpx_codec_ctx_t& ctxAlpha, int frame) {
     auto bytes = webm.DecodeFrame(frame, ctx, ctxAlpha);
     xx::Data d;
     svpng(d, webm.width, webm.height, bytes.data(), 1);
-    std::vector<u_int8_t> png;
+    std::vector<uint8_t> png;
     png.resize(d.len);
     memcpy(png.data(), d.buf, d.len);
     return png;
 }
 
-int load_frame(WebmInfo* webmInfoCtx, u_int8_t* data, int len, int threadIndex, int threadCount) {
+int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, int threadCount) {
 //    auto info = std::make_unique<WebmInfo>();
     WebmInfo webmInfo;
     auto info = &webmInfo;
@@ -113,7 +108,7 @@ int load_frame(WebmInfo* webmInfoCtx, u_int8_t* data, int len, int threadIndex, 
     return 0;
 }
 
-int init_load_webm(WebmInfo* info, u_int8_t* data, int len) {
+int init_load_webm(WebmInfo* info, uint8_t* data, int len) {
     auto result = std::make_unique<std::uint8_t[]>(len);
     memcpy(result.get(), data, len);
     if (int r = info->webm.LoadFromWebm(std::move(result), len)) {
@@ -128,7 +123,7 @@ int init_load_webm(WebmInfo* info, u_int8_t* data, int len) {
     return 0;
 }
 
-void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
+void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     if (loadFrames) {
         auto time1 = std::chrono::steady_clock::now();
         if (loadFramesThreadCount > 1) {
@@ -174,7 +169,7 @@ void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loa
 //            xx::Data d;
                 d.Clear();
                 svpng(d, webm.width, webm.height, bytes.data(), 1);
-                std::vector<u_int8_t> png;
+                std::vector<uint8_t> png;
                 png.resize(d.len);
                 memcpy(png.data(), d.buf, d.len);
                 info->frameLoaded[index] = true;
@@ -189,7 +184,7 @@ void load_webm(WebmInfo* info, u_int8_t* data, int len, bool loadFrames, int loa
     }
 }
 
-void* create_webm_decoder(u_int8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
+void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     auto webmInfo = new WebmInfo();
     auto load = std::thread(load_webm, webmInfo, data, len, loadFrames, loadFramesThreadCount);
     load.detach();
@@ -217,7 +212,7 @@ void decode_frame(void* ptr, int frame) {
     auto bytes = webm.DecodeFrame(frame, webmInfo->ctx, webmInfo->ctxAlpha);
     xx::Data d;
     svpng(d, webm.width, webm.height, bytes.data(), 1);
-    std::vector<u_int8_t> png;
+    std::vector<uint8_t> png;
     png.resize(d.len);
     memcpy(png.data(), d.buf, d.len);
 //    webmInfo->pngs.push_back(std::move(png));
@@ -235,7 +230,7 @@ void* decode_webm(const char *webmPath) {
     webm.ForeachFrame([&](std::vector<uint8_t> const& bytes, int index)->int {
         xx::Data d;
         svpng(d, webm.width, webm.height, bytes.data(), 1);
-        std::vector<u_int8_t> png;
+        std::vector<uint8_t> png;
         png.resize(d.len);
         memcpy(png.data(), d.buf, d.len);
         webmInfo->pngs.push_back(std::move(png));
@@ -244,7 +239,7 @@ void* decode_webm(const char *webmPath) {
     return (void*)webmInfo;
 }
 
-void* decode_webm_by_data(u_int8_t* data, int len) {
+void* decode_webm_by_data(uint8_t* data, int len) {
     auto result = std::make_unique<std::uint8_t[]>(len);
     memcpy(result.get(), data, len);
 
@@ -260,7 +255,7 @@ void* decode_webm_by_data(u_int8_t* data, int len) {
     webm.ForeachFrame([webmInfo, &webm](std::vector<uint8_t> const& bytes, int index)->int {
         xx::Data d;
         svpng(d, webm.width, webm.height, bytes.data(), 1);
-        std::vector<u_int8_t> png;
+        std::vector<uint8_t> png;
         png.resize(d.len);
         memcpy(png.data(), d.buf, d.len);
         webmInfo->pngs.push_back(std::move(png));
@@ -280,7 +275,8 @@ int frames_count(void* ptr) {
 
 int abi_version(void* ptr) {
     auto info = (WebmInfo*)ptr;
-    return info->iface.abi_version;
+//    return info->iface.abi_version;
+    return 0;
 }
 
 int png_count(void* ptr) {
@@ -298,7 +294,7 @@ int get_webm_height(void* ptr){
     return info->webm.height;
 }
 
-u_int8_t* get_frame_data(void* ptr, int frame) {
+uint8_t* get_frame_data(void* ptr, int frame) {
     auto info = (WebmInfo*)ptr;
     return info->pngs[frame].data();
 }
@@ -322,7 +318,7 @@ int unpack_webm(const char* webmPath, const char* outPath, const char* prefix) {
     return 0;
 }
 
-int unpack_webm1(u_int8_t *data, int size, const char *outPath, const char *prefix) {
+int unpack_webm1(uint8_t *data, int size, const char *outPath, const char *prefix) {
     auto result = std::make_unique<std::uint8_t[]>(size);
     memcpy(result.get(), data, size);
 

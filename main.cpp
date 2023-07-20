@@ -33,9 +33,9 @@ int main() {
     ifs.read(pChars, length);
     ifs.close();
 
-//    auto ptr = decode_webm_by_data((u_int8_t*)pChars, length);
-    auto ptr = create_webm_decoder((u_int8_t*)pChars, length, true, 4);
-    auto ptr1 = create_webm_decoder((u_int8_t*)pChars, length, true, 1);
+//    auto ptr = decode_webm_by_data((uint8_t*)pChars, length);
+    auto ptr = create_webm_decoder((uint8_t*)pChars, length, true, 4);
+    auto ptr1 = create_webm_decoder((uint8_t*)pChars, length, true, 1);
     assert(ptr);
     assert(ptr1);
     while (!is_load_finish(ptr)) std::this_thread::sleep_for(10ms);
