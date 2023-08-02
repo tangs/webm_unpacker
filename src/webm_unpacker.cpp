@@ -16,6 +16,7 @@ struct WebmInfo {
     uint32_t aBufLen = 0;
     bool loadFinish = false;
     int loadErrCode = 0;
+    bool flipY = false;
 };
 
 static void* print_cb;
@@ -66,6 +67,32 @@ std::vector<uint8_t> decode_frame(struct xx::Webm& webm, vpx_codec_ctx_t& ctx,
     return bytes;
 }
 
+void flipY(WebmInfo* info, std::vector<uint8_t>& bytes) {
+    auto data = bytes.data();
+    auto width = info->webm.width;
+    auto rowBytes = width * 4;
+    auto rowCount = bytes.size() / rowBytes;
+
+    uint8_t tmp[rowBytes];
+    for (int i = 0; i < rowCount / 2; ++i) {
+        auto firstRowIndex = i;
+        auto lastRowIndex = rowCount - i - 1;
+
+        auto firstRowDataIndex = data + firstRowIndex * rowBytes;
+        auto lastRowDataIndex = data + lastRowIndex * rowBytes;
+
+        memcpy(tmp, firstRowDataIndex, rowBytes);
+        memcpy(firstRowDataIndex, lastRowDataIndex, rowBytes);
+        memcpy(lastRowDataIndex, tmp, rowBytes);
+    }
+}
+
+void save_frame(WebmInfo* info, std::vector<uint8_t>&& bytes, int index) {
+    if (info->flipY) flipY(info, bytes);
+    info->frames[index] = std::move(bytes);
+    info->frameLoaded[index] = true;
+}
+
 int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, int threadCount) {
 //    auto info = std::make_unique<WebmInfo>();
     WebmInfo webmInfo;
@@ -96,8 +123,10 @@ int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, i
             webm.SkipFrame(i, info->ctx, info->ctxAlpha);
             continue;
         }
-        webmInfoCtx->frames[i] = std::move(decode_frame(webm, info->ctx, info->ctxAlpha, i));
-        webmInfoCtx->frameLoaded[i] = true;
+        auto bytes = decode_frame(webm, info->ctx, info->ctxAlpha, i);
+        save_frame(webmInfoCtx, std::move(bytes), i);
+//        webmInfoCtx->frames[i] = std::move(decode_frame(webm, info->ctx, info->ctxAlpha, i));
+//        webmInfoCtx->frameLoaded[i] = true;
     }
     return 0;
 }
@@ -152,8 +181,9 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
             xx::Data d;
             webm.ForeachFrame([info, &webm, &d](std::vector<uint8_t>& bytes, int index)->int {
                 d.Clear();
-                info->frames[index] = std::move(bytes);
-                info->frameLoaded[index] = true;
+//                info->frames[index] = std::move(bytes);
+//                info->frameLoaded[index] = true;
+                save_frame(info, std::move(bytes), index);
                 return 0;
             });
         }
@@ -164,8 +194,9 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
     }
 }
 
-void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
+void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount, bool flipY) {
     auto webmInfo = new WebmInfo();
+    webmInfo->flipY = flipY;
     auto load = std::thread(load_webm, webmInfo, data, len, loadFrames, loadFramesThreadCount);
     load.detach();
     return (void*)webmInfo;
@@ -197,8 +228,9 @@ void decode_frame(void* ptr, int frame) {
 //    memcpy(png.data(), d.buf, d.len);
 //    webmInfo->frames.push_back(std::move(png));
 //    webmInfo->frames[frame] = std::move(png);
-    webmInfo->frames[frame] = std::move(bytes);
-    webmInfo->frameLoaded[frame] = true;
+//    webmInfo->frames[frame] = std::move(bytes);
+//    webmInfo->frameLoaded[frame] = true;
+    save_frame(webmInfo, std::move(bytes), frame);
 }
 
 void* decode_webm(const char *webmPath) {
@@ -278,6 +310,11 @@ int get_webm_height(void* ptr){
 uint8_t* get_frame_data(void* ptr, int frame) {
     auto info = (WebmInfo*)ptr;
     return info->frames[frame].data();
+}
+
+std::vector<uint8_t> get_raw_frame_data(void* ptr, int frame) {
+    auto info = (WebmInfo*)ptr;
+    return info->frames[frame];
 }
 
 int get_frame_data_size(void* ptr, int frame)

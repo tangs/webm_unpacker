@@ -37,7 +37,7 @@ if (IOS)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fembed-bitcode")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fembed-bitcode")
     set(CMAKE_OSX_ARCHITECTURES "arm64")
-    add_library(webm_unpacker STATIC
+    add_library(webm_unpacker SHARED
             src/webm_unpacker.cpp
             )
 else ()

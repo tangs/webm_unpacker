@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <vector>
 
 #ifdef _WIN32
 //_declspec(dllexport)只在windows下使用
@@ -15,7 +16,8 @@ extern "C" {
     typedef void (*log_cb)(const char*);
 
     EXPORT_DLL void set_debug_log_cb(log_cb cb);
-    EXPORT_DLL void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount);
+    EXPORT_DLL void* create_webm_decoder(uint8_t* data, int len, bool loadFrames,
+                                         int loadFramesThreadCount, bool flipY);
     EXPORT_DLL bool is_load_finish(void* ptr);
     EXPORT_DLL bool is_frame_load_finish(void* ptr, int frame);
     EXPORT_DLL int load_err_code(void* ptr);
@@ -31,6 +33,7 @@ extern "C" {
     EXPORT_DLL int get_webm_width(void* ptr);
     EXPORT_DLL int get_webm_height(void* ptr);
     EXPORT_DLL uint8_t* get_frame_data(void* ptr, int frame);
+    EXPORT_DLL std::vector<uint8_t> get_raw_frame_data(void* ptr, int frame);
     EXPORT_DLL int get_frame_data_size(void* ptr, int frame);
 
     EXPORT_DLL int unpack_webm(const char *webmPath, const char *outPath, const char *prefix);
