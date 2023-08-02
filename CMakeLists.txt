@@ -15,10 +15,7 @@ elseif(ANDROID_32)
             libvpx/lib/android/armeabi-v7a
     )
 elseif(IOS)
-#    link_directories(
-#            libvpx/lib/ios
-#    )
-    add_subdirectory(third/libvpx_prebuilt/gnusrc)
+    add_subdirectory(third/libvpx_prebuilt/gnusrc gnusrc)
 else()
     link_directories(
             libvpx/lib/osx

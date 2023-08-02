@@ -2,4 +2,6 @@ cmake-build-*/
 build/
 .idea/
 .DS_Store
+.cache/
+third/
 
