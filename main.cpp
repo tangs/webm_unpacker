@@ -119,11 +119,11 @@ int main() {
         auto frameData1 = get_frame_data(ptr, i);
         auto frameData2 = get_frame_data(ptr1, i);
         assert(strncmp((char*)frameData1, (char*)frameData2, size1) == 0);
-        auto bmpPath = "/Users/tangs/Desktop/tmp/bmp/" + std::to_string(i) + ".bmp";
-        save_rgba_to_bmp(bmpPath,
-                         get_raw_frame_data(ptr, 1),
-                         get_webm_width(ptr),
-                         get_webm_height(ptr));
+//        auto bmpPath = "/Users/tangs/Desktop/tmp/bmp/" + std::to_string(i) + ".bmp";
+//        save_rgba_to_bmp(bmpPath,
+//                         get_raw_frame_data(ptr, 1),
+//                         get_webm_width(ptr),
+//                         get_webm_height(ptr));
     }
     auto pngCount = png_count(ptr);
     auto pngCount1 = png_count(ptr);

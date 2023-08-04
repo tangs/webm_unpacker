@@ -1,4 +1,4 @@
-#include "webm_unpacker.h"
+﻿#include "webm_unpacker.h"
 
 #include "xx_webm.h"
 
@@ -54,7 +54,6 @@ int init_decoder(void* ptr) {
 void destroy_decoder(void* ptr) {
     auto info = (WebmInfo*)ptr;
     auto& webm = info->webm;
-
     vpx_codec_destroy(&info->ctx);
     if (webm.hasAlpha) {
         vpx_codec_destroy(&info->ctxAlpha);
@@ -321,6 +320,12 @@ int get_frame_data_size(void* ptr, int frame)
 {
     auto info = (WebmInfo*)ptr;
     return (int)info->frames[frame].size();
+}
+
+bool has_alpha_channel(void* ptr)
+{
+    auto info = (WebmInfo*)ptr;
+    return info->webm.hasAlpha;
 }
 
 int unpack_webm(const char* webmPath, const char* outPath, const char* prefix) {

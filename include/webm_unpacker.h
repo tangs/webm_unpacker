@@ -1,8 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdlib>
 #include <cstdint>
-#include <vector>
 
 #ifdef _WIN32
 //_declspec(dllexport)只在windows下使用
@@ -33,8 +32,8 @@ extern "C" {
     EXPORT_DLL int get_webm_width(void* ptr);
     EXPORT_DLL int get_webm_height(void* ptr);
     EXPORT_DLL uint8_t* get_frame_data(void* ptr, int frame);
-    EXPORT_DLL std::vector<uint8_t> get_raw_frame_data(void* ptr, int frame);
     EXPORT_DLL int get_frame_data_size(void* ptr, int frame);
+    EXPORT_DLL bool has_alpha_channel(void* ptr);
 
     EXPORT_DLL int unpack_webm(const char *webmPath, const char *outPath, const char *prefix);
     EXPORT_DLL int unpack_webm1(uint8_t* data, int len, const char *outPath, const char *prefix);
