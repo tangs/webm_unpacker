@@ -37,5 +37,4 @@ extern "C" {
 
     EXPORT_DLL int unpack_webm(const char *webmPath, const char *outPath, const char *prefix);
     EXPORT_DLL int unpack_webm1(uint8_t* data, int len, const char *outPath, const char *prefix);
-    EXPORT_DLL int foo();
 }

@@ -356,8 +356,3 @@ int unpack_webm1(uint8_t *data, int size, const char *outPath, const char *prefi
     }
     return 0;
 }
-
-int foo() {
-    return 100;
-}
-
