@@ -72,7 +72,12 @@ void flipY(WebmInfo* info, std::vector<uint8_t>& bytes) {
     auto rowBytes = width * 4;
     auto rowCount = bytes.size() / rowBytes;
 
+#ifdef _WIN32
+    auto tmp = new uint8_t[rowBytes];
+#else
     uint8_t tmp[rowBytes];
+#endif
+
     for (int i = 0; i < rowCount / 2; ++i) {
         auto firstRowIndex = i;
         auto lastRowIndex = rowCount - i - 1;
@@ -84,6 +89,10 @@ void flipY(WebmInfo* info, std::vector<uint8_t>& bytes) {
         memcpy(firstRowDataIndex, lastRowDataIndex, rowBytes);
         memcpy(lastRowDataIndex, tmp, rowBytes);
     }
+
+#ifdef _WIN32
+    delete[] tmp;
+#endif
 }
 
 void save_frame(WebmInfo* info, std::vector<uint8_t>&& bytes, int index) {
@@ -124,8 +133,6 @@ int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, i
         }
         auto bytes = decode_frame(webm, info->ctx, info->ctxAlpha, i);
         save_frame(webmInfoCtx, std::move(bytes), i);
-//        webmInfoCtx->frames[i] = std::move(decode_frame(webm, info->ctx, info->ctxAlpha, i));
-//        webmInfoCtx->frameLoaded[i] = true;
     }
     return 0;
 }
@@ -180,8 +187,6 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
             xx::Data d;
             webm.ForeachFrame([info, &webm, &d](std::vector<uint8_t>& bytes, int index)->int {
                 d.Clear();
-//                info->frames[index] = std::move(bytes);
-//                info->frameLoaded[index] = true;
                 save_frame(info, std::move(bytes), index);
                 return 0;
             });
@@ -196,8 +201,13 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
 void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount, bool flipY) {
     auto webmInfo = new WebmInfo();
     webmInfo->flipY = flipY;
-    auto load = std::thread(load_webm, webmInfo, data, len, loadFrames, loadFramesThreadCount);
-    load.detach();
+    if (loadFramesThreadCount == 0) {
+        // 线程数为0时不开线程.
+        load_webm(webmInfo, data, len, loadFrames, loadFramesThreadCount);
+    } else {
+        auto load = std::thread(load_webm, webmInfo, data, len, loadFrames, loadFramesThreadCount);
+        load.detach();
+    }
     return (void*)webmInfo;
 }
 
@@ -220,15 +230,6 @@ void decode_frame(void* ptr, int frame) {
     auto webmInfo = (WebmInfo*)ptr;
     auto& webm = webmInfo->webm;
     auto bytes = webm.DecodeFrame(frame, webmInfo->ctx, webmInfo->ctxAlpha);
-//    xx::Data d;
-//    svpng(d, webm.width, webm.height, bytes.data(), 1);
-//    std::vector<uint8_t> png;
-//    png.resize(d.len);
-//    memcpy(png.data(), d.buf, d.len);
-//    webmInfo->frames.push_back(std::move(png));
-//    webmInfo->frames[frame] = std::move(png);
-//    webmInfo->frames[frame] = std::move(bytes);
-//    webmInfo->frameLoaded[frame] = true;
     save_frame(webmInfo, std::move(bytes), frame);
 }
 
@@ -285,12 +286,6 @@ int frames_count(void* ptr) {
     return (int)info->webm.count;
 }
 
-int abi_version(void* ptr) {
-    auto info = (WebmInfo*)ptr;
-//    return info->iface.abi_version;
-    return 0;
-}
-
 int png_count(void* ptr) {
     auto info = (WebmInfo*)ptr;
     return (int)info->frames.size();
@@ -311,19 +306,17 @@ uint8_t* get_frame_data(void* ptr, int frame) {
     return info->frames[frame].data();
 }
 
-std::vector<uint8_t> get_raw_frame_data(void* ptr, int frame) {
+std::vector<uint8_t>& get_raw_frame_data(void* ptr, int frame) {
     auto info = (WebmInfo*)ptr;
     return info->frames[frame];
 }
 
-int get_frame_data_size(void* ptr, int frame)
-{
+int get_frame_data_size(void* ptr, int frame) {
     auto info = (WebmInfo*)ptr;
     return (int)info->frames[frame].size();
 }
 
-bool has_alpha_channel(void* ptr)
-{
+bool has_alpha_channel(void* ptr) {
     auto info = (WebmInfo*)ptr;
     return info->webm.hasAlpha;
 }

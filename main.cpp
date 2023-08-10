@@ -8,8 +8,7 @@ void print(const char* str) {
     std::cout << "log: " << str << std::endl;
 }
 
-bool save_rgba_to_bmp(const std::string& path, const std::vector<unsigned char>& rgba, int width, int height)
-{
+bool save_rgba_to_bmp(const std::string& path, const std::vector<unsigned char>& rgba, int width, int height) {
     std::ofstream file(path.c_str(), std::ios::binary);
     if(!file) return false;
 
@@ -71,39 +70,23 @@ bool save_rgba_to_bmp(const std::string& path, const std::vector<unsigned char>&
     return true;
 }
 
-int main() {
-//    auto path = "./res/1.webm";
-//    auto path = "/Users/tangs/Desktop/tmp/webm/mokey_vp9_60fps.webm";
-//    auto outputPath = "/Users/tangs/Desktop/tmp/webm/output";
-//    struct xx::Webm webm;
-//    if (int r = webm.LoadFromWebmWithPath(path)) {
-//        return r;
-//    }
-//    if (int r = webm.SaveToPngs(outputPath, "abc_")) {
-//        return r;
-//    }
-//    int a = 3;
+static std::vector<uint8_t> get_raw_frame_data(void* context, int frame) {
+    auto frameData = get_frame_data(context, frame);
+    auto size = get_frame_data_size(context, frame);
+    std::vector<uint8_t> data;
+    data.resize(size);
+    memcpy(data.data(), frameData, size);
+    return data;
+}
 
-//    auto path = "/Users/tangs/Desktop/tmp/webm/mokey_vp9_60fps.webm";
-    auto path = "/Users/tangs/Desktop/tmp/EN_UHDL_Bn_Ftr_In_00000.webm";
-//    auto path = "/Users/tangs/Desktop/tmp/webm/10.webm";
-    set_debug_log_cb(print);
-    std::ifstream ifs(path,
-                          std::ios::binary | std::ios::ate);
-    std::ifstream::pos_type pos = ifs.tellg();
-    int length = pos;
-    char *pChars = new char[length];
-    ifs.seekg(0, std::ios::beg);
-    ifs.read(pChars, length);
-    ifs.close();
-
-//    auto ptr = decode_webm_by_data((uint8_t*)pChars, length);
+void Test1(const char* pChars, int length) {
     auto ptr = create_webm_decoder((uint8_t*)pChars, length,
-                                   true, 4, true);
+                                   true, 0, true);
     auto ptr1 = create_webm_decoder((uint8_t*)pChars, length,
                                     true, 1, false);
     assert(ptr);
     assert(ptr1);
+
     while (!is_load_finish(ptr)) std::this_thread::sleep_for(10ms);
     while (!is_load_finish(ptr1)) std::this_thread::sleep_for(10ms);
 
@@ -118,17 +101,52 @@ int main() {
         assert(size1 == size2);
         auto frameData1 = get_frame_data(ptr, i);
         auto frameData2 = get_frame_data(ptr1, i);
-        assert(strncmp((char*)frameData1, (char*)frameData2, size1) == 0);
-//        auto bmpPath = "/Users/tangs/Desktop/tmp/bmp/" + std::to_string(i) + ".bmp";
-//        save_rgba_to_bmp(bmpPath,
-//                         get_raw_frame_data(ptr, 1),
-//                         get_webm_width(ptr),
-//                         get_webm_height(ptr));
+//        assert(strncmp((char*)frameData1, (char*)frameData2, size1) == 0);
+        auto bmpPath = "/Users/tangs/Desktop/tmp/bmp/" + std::to_string(i) + ".bmp";
+        auto rgba = get_raw_frame_data(ptr, i);
+        save_rgba_to_bmp(bmpPath,
+                         rgba,
+                         get_webm_width(ptr),
+                         get_webm_height(ptr));
     }
-    auto pngCount = png_count(ptr);
-    auto pngCount1 = png_count(ptr);
     destroy_decoder(ptr);
     destroy_decoder(ptr1);
+}
+
+void Test2(const char* pChars, int length, const std::string& outPath) {
+    auto context = create_webm_decoder((uint8_t*)pChars, length,
+                                   true, 0, false);
+    assert(context);
+
+    auto frameCount = frames_count(context);
+    auto with = get_webm_width(context);
+    auto height = get_webm_height(context);
+    for (auto i = 0; i < frameCount; ++i) {
+        auto size = get_frame_data_size(context, i);
+        auto frameData1 = get_frame_data(context, i);
+        auto path = outPath + std::to_string(i) + ".bmp";
+        auto rgba = get_raw_frame_data(context, i);
+        save_rgba_to_bmp(path, rgba, with, height);
+    }
+
+    destroy_decoder(context);
+}
+
+int main() {
+    auto path = "/Users/tangs/Desktop/tmp/webm/EN_UHDL_Bn_Ftr_In_00000.webm.txt";
+    auto outPath = "/Users/tangs/Desktop/tmp/bmp/";
+
+    set_debug_log_cb(print);
+    std::ifstream ifs(path, std::ios::binary | std::ios::ate);
+    std::ifstream::pos_type pos = ifs.tellg();
+    auto length = (int)pos;
+    char *pChars = new char[length];
+    ifs.seekg(0, std::ios::beg);
+    ifs.read(pChars, length);
+    ifs.close();
+
+    Test2(pChars, length, outPath);
+
     delete[] pChars;
 
     return 0;
