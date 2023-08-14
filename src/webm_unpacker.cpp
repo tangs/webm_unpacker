@@ -18,6 +18,7 @@ struct WebmInfo {
     int loadErrCode = 0;
     bool flipY = false;
     bool convertTo16BitTexture = false;
+    int skipFramesPerTimes{};
 };
 
 static void* print_cb;
@@ -204,9 +205,13 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
             info->frames.resize(count);
             info->frameLoaded.resize(count, false);
 
-            xx::Data d;
-            webm.ForeachFrame([info, &webm, &d](std::vector<uint8_t>& bytes, int index)->int {
-                d.Clear();
+            webm.ForeachFrame([info, skipFramesPerTimes = info->skipFramesPerTimes]
+            (std::vector<uint8_t>& bytes, int index)->int {
+                auto needSkipFrame = index % (skipFramesPerTimes + 1) > 0;
+                if (needSkipFrame) {
+                    info->frameLoaded[index] = true;
+                    return 0;
+                }
                 save_frame(info, std::move(bytes), index);
                 return 0;
             });
@@ -219,10 +224,11 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
 }
 
 void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount,
-                          bool flipY, bool convertTo16BitTexture/* = false*/) {
+                          bool flipY, bool convertTo16BitTexture/* = false*/, int skipFramesPerTimes/* = 0*/) {
     auto webmInfo = new WebmInfo();
     webmInfo->flipY = flipY;
     webmInfo->convertTo16BitTexture = convertTo16BitTexture;
+    webmInfo->skipFramesPerTimes = skipFramesPerTimes;
     if (loadFramesThreadCount == 0) {
         // 线程数为0时不开线程.
         load_webm(webmInfo, data, len, loadFrames, loadFramesThreadCount);
