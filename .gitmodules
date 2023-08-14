@@ -1,0 +1,3 @@
+[submodule "third/libvpx_prebuilt"]
+	path = third/libvpx_prebuilt
+	url = git@github.com:tangs/libvpx_prebuilt.git
