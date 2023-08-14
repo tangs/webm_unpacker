@@ -15,9 +15,13 @@ extern "C" {
 
     EXPORT_DLL void set_debug_log_cb(log_cb cb);
 
+    // loadFramesThreadCount: 为0时在当前线程解码.
+    // convertTo16BitTexture: 转成RGBA4444, 目前Unity在用, cocos待测试.
+    // skipFramesPerTimes: 为解1帧丢弃的帧数, 为0时不丢弃.
     EXPORT_DLL void* create_webm_decoder(uint8_t* data, int len, bool loadFrames,
                                          int loadFramesThreadCount, bool flipY,
-                                         bool convertTo16BitTexture = false, int skipFramesPerTimes = 0);
+                                         bool convertTo16BitTexture = false,
+                                         int skipFramesPerTimes = 0);
     EXPORT_DLL void destroy_decoder(void* context);
     EXPORT_DLL bool is_load_finish(void* context);
     EXPORT_DLL bool is_frame_load_finish(void* context, int frame);
