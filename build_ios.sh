@@ -11,6 +11,6 @@ cmake \
     -DPLATFORM=OS64 \
     -GXcode ../..
 #cd ../..
-#cmake --build webm_unpacker --config Release
+cmake --build . --config Release
 
 #make
