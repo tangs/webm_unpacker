@@ -32,8 +32,6 @@ if (NOT CMAKE_BUILD_TYPE)
 endif ()
 
 if (IOS)
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fembed-bitcode")
-#    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fembed-bitcode")
     include_directories(
             third/libvpx_prebuilt/gnusrc
     )
@@ -61,7 +59,12 @@ else ()
             main.cpp
             src/webm_unpacker.cpp
     )
-    target_link_libraries(webm_unpacker_test vpxgnu)
-    target_link_libraries(webm_unpacker vpxgnu)
+    if (WIN32)
+        target_link_libraries(webm_unpacker_test libvpxgnu)
+        target_link_libraries(webm_unpacker libvpxgnu)
+    else ()
+        target_link_libraries(webm_unpacker_test vpxgnu)
+        target_link_libraries(webm_unpacker vpxgnu)
+    endif ()
 endif ()
 
