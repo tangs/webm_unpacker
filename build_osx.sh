@@ -8,4 +8,4 @@ cmake \
     -DCMAKE_BUILD_TYPE=Release \
     ../..
 
-make
+make webm_unpacker

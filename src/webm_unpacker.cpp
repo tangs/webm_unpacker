@@ -1,4 +1,4 @@
-﻿#include "webm_unpacker.h"
+#include "webm_unpacker.h"
 
 #include "xx_webm.h"
 
@@ -17,6 +17,7 @@ struct WebmInfo {
     bool loadFinish = false;
     int loadErrCode = 0;
     bool flipY = false;
+    bool convertTo16BitTexture = false;
 };
 
 static void* print_cb;
@@ -42,10 +43,10 @@ int init_decoder(void* ptr) {
     info->cfg = {1, webm.width, webm.height};
     auto iface = (vpx_codec_iface*)vpx_codec_vp9_dx();
     info->iface = iface;
-    if (int r = vpx_codec_dec_init(&info->ctx, info->iface, &info->cfg, 0)) return 10000 + r;
+    if (int r = vpx_codec_dec_init(&info->ctx, info->iface, &info->cfg, 0)) return 30000 + r;
 //    if (int r = vpx_codec_decode(&info->ctx, info->rgbBuf, info->rgbBufLen, nullptr, 0)) assert(false);
     if (webm.hasAlpha) {
-        if (int r = vpx_codec_dec_init(&info->ctxAlpha, info->iface, &info->cfg, 0)) return 20000 + r;
+        if (int r = vpx_codec_dec_init(&info->ctxAlpha, info->iface, &info->cfg, 0)) return 40000 + r;
 //        if (int r = vpx_codec_decode(&info->ctxAlpha, info->aBuf, info->aBufLen, nullptr, 0)) assert(false);
     }
     return 0;
@@ -67,9 +68,10 @@ std::vector<uint8_t> decode_frame(struct xx::Webm& webm, vpx_codec_ctx_t& ctx,
 }
 
 void flipY(WebmInfo* info, std::vector<uint8_t>& bytes) {
+    auto pixelBytes = info->convertTo16BitTexture ? 2 : 4;
     auto data = bytes.data();
     auto width = info->webm.width;
-    auto rowBytes = width * 4;
+    auto rowBytes = width * pixelBytes;
     auto rowCount = bytes.size() / rowBytes;
 
 #ifdef _WIN32
@@ -95,7 +97,25 @@ void flipY(WebmInfo* info, std::vector<uint8_t>& bytes) {
 #endif
 }
 
+void convertTo16BitTexture(WebmInfo* info, std::vector<uint8_t>& bytes) {
+    const auto len = bytes.size();
+    for (auto i = 0; i < len; i += 4) {
+        auto r = bytes[i];
+        auto g = bytes[i + 1];
+        auto b = bytes[i + 2];
+        auto a = bytes[i + 3];
+
+        auto idx1 = i / 2;
+        auto idx2 = idx1 + 1;
+
+        bytes[idx1] = (b & 0xf0) | ((a >> 4) & 0x0f);
+        bytes[idx2] = (r & 0xf0) | ((g >> 4) & 0x0f);
+    }
+    bytes.resize(len / 2);
+}
+
 void save_frame(WebmInfo* info, std::vector<uint8_t>&& bytes, int index) {
+    if (info->convertTo16BitTexture) convertTo16BitTexture(info, bytes);
     if (info->flipY) flipY(info, bytes);
     info->frames[index] = std::move(bytes);
     info->frameLoaded[index] = true;
@@ -198,9 +218,11 @@ void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int load
     }
 }
 
-void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount, bool flipY) {
+void* create_webm_decoder(uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount,
+                          bool flipY, bool convertTo16BitTexture/* = false*/) {
     auto webmInfo = new WebmInfo();
     webmInfo->flipY = flipY;
+    webmInfo->convertTo16BitTexture = convertTo16BitTexture;
     if (loadFramesThreadCount == 0) {
         // 线程数为0时不开线程.
         load_webm(webmInfo, data, len, loadFrames, loadFramesThreadCount);

@@ -16,7 +16,8 @@ extern "C" {
     EXPORT_DLL void set_debug_log_cb(log_cb cb);
 
     EXPORT_DLL void* create_webm_decoder(uint8_t* data, int len, bool loadFrames,
-                                         int loadFramesThreadCount, bool flipY);
+                                         int loadFramesThreadCount, bool flipY,
+                                         bool convertTo16BitTexture = false);
     EXPORT_DLL void destroy_decoder(void* context);
     EXPORT_DLL bool is_load_finish(void* context);
     EXPORT_DLL bool is_frame_load_finish(void* context, int frame);

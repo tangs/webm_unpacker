@@ -12,4 +12,4 @@ cmake \
     -DANDROID_32=true \
     ../../..
 
-make
+make webm_unpacker

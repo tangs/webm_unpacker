@@ -115,7 +115,7 @@ void Test1(const char* pChars, int length) {
 
 void Test2(const char* pChars, int length, const std::string& outPath) {
     auto context = create_webm_decoder((uint8_t*)pChars, length,
-                                   true, 0, false);
+                                   true, 0, false, true);
     assert(context);
 
     auto frameCount = frames_count(context);
