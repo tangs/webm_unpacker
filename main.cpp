@@ -137,11 +137,13 @@ void Test2(const char* pChars, int length, const std::string& outPath) {
 
 void Test3(const char* pChars, int length) {
     auto ptr = create_webm_decoder((uint8_t*)pChars, length,
-                                   true, 1, true, true, 3);
+                                   true, 1, true, false, 3);
     assert(ptr);
 
     while (!is_load_finish(ptr)) std::this_thread::sleep_for(10ms);
 
+    auto width = get_webm_width(ptr);
+    auto height = get_webm_height(ptr);
 //    init_decoder(ptr);
     auto frameCount = frames_count(ptr);
     for (auto i = 0; i < frameCount; ++i) {
@@ -154,8 +156,8 @@ void Test3(const char* pChars, int length) {
         auto rgba = get_raw_frame_data(ptr, i);
         save_rgba_to_bmp(bmpPath,
                          rgba,
-                         get_webm_width(ptr),
-                         get_webm_height(ptr));
+                         width,
+                         height);
     }
     destroy_decoder(ptr);
     release_webm(ptr);
