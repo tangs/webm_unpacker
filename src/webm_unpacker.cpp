@@ -53,7 +53,6 @@ int init_decoder(void* ptr) {
     return 0;
 }
 
-
 int init_load_webm(WebmInfo* info, uint8_t* data, int len) {
 //    auto result = std::make_unique<std::uint8_t[]>(len);
 //    memcpy(result.get(), data, len);
@@ -139,33 +138,44 @@ void save_frame(WebmInfo* info, std::vector<uint8_t>&& bytes, int index) {
 }
 
 int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, int threadCount) {
-//    auto info = webmInfoCtx;
-//    if (threadIndex > 0) {
-//        WebmInfo webmInfo;
-//        info = &webmInfo;
-//        init_load_webm(info, data, len);
-//    }
     WebmInfo webmInfo;
     auto info = &webmInfo;
-    init_load_webm(info, data, len);
+    if (auto r = init_load_webm(info, data, len)) {
+        info->loadErrCode = r;
+        webmInfoCtx->loadFinish = true;
+        return info->loadErrCode;
+    }
 
+    if (!webmInfoCtx->loadFinish) {
+        auto count = webmInfo.webm.count;
+        webmInfoCtx->webm.count = count;
+        webmInfoCtx->webm.width = webmInfo.webm.width;
+        webmInfoCtx->webm.height = webmInfo.webm.height;
+        webmInfoCtx->webm.hasAlpha = webmInfo.webm.hasAlpha;
+        webmInfoCtx->webm.duration = webmInfo.webm.duration;
+        webmInfoCtx->frames.resize(count);
+        webmInfoCtx->frameLoaded.resize(count, false);
+        webmInfoCtx->loadFinish = true;
+    }
+
+    auto count = webmInfo.webm.count;
     std::cout << "start code webm:" << threadIndex << std::endl;
 
     auto& webm = info->webm;
-    auto count = (int)info->webm.count;
+//    auto count = (int)info->webm.count;
     auto skipFramesPerTimes = webmInfoCtx->skipFramesPerTimes;
-    auto& ctx = info->ctx;
-    auto& ctxAlpha = info->ctxAlpha;
+//    auto& ctx = info->ctx;
+//    auto& ctxAlpha = info->ctxAlpha;
 
     for (auto i = 0; i < count; i++) {
         auto isDecodeWithOtherThread = i % threadCount != threadIndex;
         auto needSkipFrame = i % (skipFramesPerTimes + 1) > 0;
         if (isDecodeWithOtherThread || needSkipFrame) {
-            webm.SkipFrame(i, ctx, ctxAlpha);
+            webm.SkipFrame(i, info->ctx, info->ctxAlpha);
             webmInfoCtx->frameLoaded[i] = true;
             continue;
         }
-        auto bytes = decode_frame(webm, ctx, ctxAlpha, i);
+        auto bytes = decode_frame(webm, info->ctx, info->ctxAlpha, i);
         save_frame(webmInfoCtx, std::move(bytes), i);
     }
     return 0;
@@ -173,17 +183,6 @@ int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, i
 
 void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     if (loadFrames) {
-//        if (int r = init_load_webm(info, data, len)) {
-//            info->loadErrCode = r;
-//            return;
-//        }
-
-        auto& webm = info->webm;
-        auto count = webm.count;
-        info->frames.resize(count);
-        info->frameLoaded.resize(count, false);
-        info->loadFinish = true;
-
         if (loadFramesThreadCount > 1) {
             std::vector<std::thread> threads(loadFramesThreadCount);
             for (auto i = 0; i < loadFramesThreadCount; ++i) {
