@@ -376,7 +376,7 @@ private:
 class EbmlDocument
 {
 public:
-    EbmlDocument(std::unique_ptr<uint8_t[]> storage = nullptr, std::list<EbmlElement> elements = std::list<EbmlElement>());
+    EbmlDocument(uint8_t* storage = nullptr, std::list<EbmlElement> elements = std::list<EbmlElement>());
 
     const std::list<EbmlElement>& elements() const;
 
@@ -384,7 +384,7 @@ public:
     std::list<EbmlElement>::const_iterator FindNextChildById(std::list<EbmlElement>::const_iterator const& iter, EbmlElementId const& id) const;
 
 private:
-    std::unique_ptr<uint8_t[]> storage_;
+    uint8_t* storage_;
     std::list<EbmlElement> elements_;
 };
 
@@ -402,7 +402,7 @@ uint64_t get_ebml_element_size(const uint8_t* data, size_t available_data_length
 EbmlElementId read_ebml_element_id(uint8_t* data, size_t& available_data_length, size_t& ebml_element_id_length);
 std::string get_ebml_element_value(EbmlElementId id, EbmlElementType type, uint8_t* data, uint64_t size);
 
-EbmlDocument parse_ebml_file(std::unique_ptr<uint8_t[]>&& ebml_file_contents, size_t const& file_size, bool const& verbose = false);
+EbmlDocument parse_ebml_file(uint8_t* ebml_file_contents, size_t const& file_size, bool const& verbose = false);
 
 
 
@@ -1018,8 +1018,8 @@ inline std::list<EbmlElement>::const_iterator EbmlDocument::FindNextChildById(st
 }
 
 
-inline EbmlDocument::EbmlDocument(std::unique_ptr<uint8_t[]> storage, std::list<EbmlElement> elements)
-        : storage_(std::move(storage)), elements_(std::move(elements))
+inline EbmlDocument::EbmlDocument(uint8_t* storage, std::list<EbmlElement> elements)
+        : storage_(storage), elements_(std::move(elements))
 {
 }
 
@@ -1035,7 +1035,7 @@ enum class EbmlParserState
     ParseElementValue,
 };
 
-inline EbmlDocument parse_ebml_file(std::unique_ptr<uint8_t[]>&& ebml_file_contents, size_t const& file_size, bool const& verbose)
+inline EbmlDocument parse_ebml_file(uint8_t* ebml_file_contents, size_t const& file_size, bool const& verbose)
 {
     size_t remaining_file_size = file_size;
 

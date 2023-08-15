@@ -53,6 +53,22 @@ int init_decoder(void* ptr) {
     return 0;
 }
 
+
+int init_load_webm(WebmInfo* info, uint8_t* data, int len) {
+//    auto result = std::make_unique<std::uint8_t[]>(len);
+//    memcpy(result.get(), data, len);
+    if (int r = info->webm.LoadFromWebm(data, len)) {
+        std::stringstream ss;
+        ss << "load from webm fail: " << r;
+        print_log(ss.str());
+        return r + 1000;
+    }
+    if (int r = init_decoder(info)) {
+        return r + 2000;
+    }
+    return 0;
+}
+
 void destroy_decoder(void* ptr) {
     auto info = (WebmInfo*)ptr;
     auto& webm = info->webm;
@@ -123,103 +139,57 @@ void save_frame(WebmInfo* info, std::vector<uint8_t>&& bytes, int index) {
 }
 
 int load_frame(WebmInfo* webmInfoCtx, uint8_t* data, int len, int threadIndex, int threadCount) {
-//    auto info = std::make_unique<WebmInfo>();
-    WebmInfo webmInfo;
-    auto info = &webmInfo;
+    auto info = webmInfoCtx;
+    if (threadIndex > 0) {
+        WebmInfo webmInfo;
+        info = &webmInfo;
+        init_load_webm(info, data, len);
+    }
+
+    std::cout << "start code webm:" << threadIndex << std::endl;
+
     auto& webm = info->webm;
-    auto result = std::make_unique<std::uint8_t[]>(len);
-    memcpy(result.get(), data, len);
-
-    if (int r = webm.LoadFromWebm(std::move(result), len)) {
-        std::stringstream ss;
-        ss << "load from webm fail: " << r;
-        print_log(ss.str());
-
-        info->loadErrCode = r;
-        info->loadFinish = true;
-        return r + 1000;
-    }
-    if (int r = init_decoder(info)) {
-        info->loadErrCode = r;
-        info->loadFinish = true;
-        return r + 2000;
-    }
-
-    std::cout << "start:" << threadIndex << std::endl;
     auto count = (int)info->webm.count;
+    auto skipFramesPerTimes = webmInfoCtx->skipFramesPerTimes;
+    auto& ctx = info->ctx;
+    auto& ctxAlpha = info->ctxAlpha;
+
     for (auto i = 0; i < count; i++) {
-        if (i % threadCount != threadIndex) {
-            webm.SkipFrame(i, info->ctx, info->ctxAlpha);
+        auto isDecodeWithOtherThread = i % threadCount != threadIndex;
+        auto needSkipFrame = i % (skipFramesPerTimes + 1) > 0;
+        if (isDecodeWithOtherThread || needSkipFrame) {
+            webm.SkipFrame(i, ctx, ctxAlpha);
+            info->frameLoaded[i] = true;
             continue;
         }
-        auto bytes = decode_frame(webm, info->ctx, info->ctxAlpha, i);
+        auto bytes = decode_frame(webm, ctx, ctxAlpha, i);
         save_frame(webmInfoCtx, std::move(bytes), i);
-    }
-    return 0;
-}
-
-int init_load_webm(WebmInfo* info, uint8_t* data, int len) {
-    auto result = std::make_unique<std::uint8_t[]>(len);
-    memcpy(result.get(), data, len);
-    if (int r = info->webm.LoadFromWebm(std::move(result), len)) {
-        std::stringstream ss;
-        ss << "load from webm fail: " << r;
-        print_log(ss.str());
-        return r + 1000;
-    }
-    if (int r = init_decoder(info)) {
-        return r + 2000;
     }
     return 0;
 }
 
 void load_webm(WebmInfo* info, uint8_t* data, int len, bool loadFrames, int loadFramesThreadCount) {
     if (loadFrames) {
-        auto time1 = std::chrono::steady_clock::now();
+        if (int r = init_load_webm(info, data, len)) {
+            info->loadErrCode = r;
+            return;
+        }
+
+        auto& webm = info->webm;
+        auto count = webm.count;
+        info->frames.resize(count);
+        info->frameLoaded.resize(count, false);
+        info->loadFinish = true;
+
         if (loadFramesThreadCount > 1) {
-            auto& webm = info->webm;
-            if (int r = init_load_webm(info, data, len)) {
-                info->loadErrCode = r;
-            }
-
-            auto count = webm.count;
-            info->frames.resize(count);
-            info->frameLoaded.resize(count, false);
-            info->loadFinish = true;
-
             std::vector<std::thread> threads(loadFramesThreadCount);
             for (auto i = 0; i < loadFramesThreadCount; ++i) {
                 threads[i] = std::thread(load_frame, info, data, len, i, loadFramesThreadCount);
                 threads[i].detach();
             }
         } else {
-            if (int r = init_load_webm(info, data, len)) {
-                info->loadErrCode = r;
-            } else {
-                info->loadErrCode = 0;
-            }
-            info->loadFinish = true;
-            
-            auto& webm = info->webm;
-            auto count = webm.count;
-            info->frames.resize(count);
-            info->frameLoaded.resize(count, false);
-
-            webm.ForeachFrame([info, skipFramesPerTimes = info->skipFramesPerTimes]
-            (std::vector<uint8_t>& bytes, int index)->int {
-                auto needSkipFrame = index % (skipFramesPerTimes + 1) > 0;
-                if (needSkipFrame) {
-                    info->frameLoaded[index] = true;
-                    return 0;
-                }
-                save_frame(info, std::move(bytes), index);
-                return 0;
-            });
+            load_frame(info, data, len, 0, 1);
         }
-        auto time2 = std::chrono::steady_clock::now();
-        auto duration11 = std::chrono::duration_cast<std::chrono::microseconds>(time2- time1);
-        std::cout << "load webm frame: use " << duration11.count()
-        << " microseconds, threads count: " << loadFramesThreadCount << std::endl;
     }
 }
 
@@ -281,12 +251,12 @@ void* decode_webm(const char *webmPath) {
 }
 
 void* decode_webm_by_data(uint8_t* data, int len) {
-    auto result = std::make_unique<std::uint8_t[]>(len);
-    memcpy(result.get(), data, len);
+//    auto result = std::make_unique<std::uint8_t[]>(len);
+//    memcpy(result.get(), data, len);
 
     auto webmInfo = new WebmInfo();
     auto& webm = webmInfo->webm;
-    int r = webm.LoadFromWebm(std::move(result), len);
+    int r = webm.LoadFromWebm(data, len);
     if (r) {
         std::stringstream ss;
         ss << "load from webm fail: " << r;
@@ -363,11 +333,11 @@ int unpack_webm(const char* webmPath, const char* outPath, const char* prefix) {
 }
 
 int unpack_webm1(uint8_t *data, int size, const char *outPath, const char *prefix) {
-    auto result = std::make_unique<std::uint8_t[]>(size);
-    memcpy(result.get(), data, size);
+//    auto result = std::make_unique<std::uint8_t[]>(size);
+//    memcpy(result.get(), data, size);
 
     struct xx::Webm webm;
-    int r = webm.LoadFromWebm(std::move(result), size);
+    int r = webm.LoadFromWebm(data, size);
     if (r) {
         return r;
     }

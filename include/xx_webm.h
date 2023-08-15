@@ -184,7 +184,7 @@ namespace xx {
         }
 
         // 从 .webm 读出数据并填充到 wm. 成功返回 0
-        inline int LoadFromWebm(std::unique_ptr<uint8_t[]> data, size_t dataLen) {
+        inline int LoadFromWebm(uint8_t* data, size_t dataLen) {
 //            // 读文件
 //            std::unique_ptr<uint8_t[]> data;
 //            size_t dataLen;
@@ -192,7 +192,7 @@ namespace xx {
 
             this->Clear();
             // 开始解析 ebml 头
-            auto&& ebml = parse_ebml_file(std::move(data), dataLen/*, 1*/);
+            auto&& ebml = parse_ebml_file(data, dataLen/*, 1*/);
             auto&& segment = ebml.FindChildById(EbmlElementId::Segment);
 
             // 提取 播放总时长
@@ -304,7 +304,7 @@ namespace xx {
             size_t dataLen;
             if (int r = xx::ReadAllBytes(path, data, dataLen)) return __LINE__;
 
-            return LoadFromWebm(std::move(data), dataLen);
+            return LoadFromWebm(data.get(), dataLen);
         }
 
         // 每帧画面另存为 png 文件。

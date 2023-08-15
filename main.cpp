@@ -111,6 +111,8 @@ void Test1(const char* pChars, int length) {
     }
     destroy_decoder(ptr);
     destroy_decoder(ptr1);
+    release_webm(ptr);
+    release_webm(ptr1);
 }
 
 void Test2(const char* pChars, int length, const std::string& outPath) {
@@ -130,10 +132,39 @@ void Test2(const char* pChars, int length, const std::string& outPath) {
     }
 
     destroy_decoder(context);
+    release_webm(context);
+}
+
+void Test3(const char* pChars, int length) {
+    auto ptr = create_webm_decoder((uint8_t*)pChars, length,
+                                   true, 1, true, true, 3);
+    assert(ptr);
+
+    while (!is_load_finish(ptr)) std::this_thread::sleep_for(10ms);
+
+//    init_decoder(ptr);
+    auto frameCount = frames_count(ptr);
+    for (auto i = 0; i < frameCount; ++i) {
+        while (!is_frame_load_finish(ptr, i)) std::this_thread::sleep_for(10ms);
+        auto size1 = get_frame_data_size(ptr, i);
+        if (size1 == 0) continue;
+        auto frameData1 = get_frame_data(ptr, i);
+//        assert(strncmp((char*)frameData1, (char*)frameData2, size1) == 0);
+        auto bmpPath = "/Users/tangs/Desktop/tmp/bmp/" + std::to_string(i) + ".bmp";
+        auto rgba = get_raw_frame_data(ptr, i);
+        save_rgba_to_bmp(bmpPath,
+                         rgba,
+                         get_webm_width(ptr),
+                         get_webm_height(ptr));
+    }
+    destroy_decoder(ptr);
+    release_webm(ptr);
 }
 
 int main() {
     auto path = "/Users/tangs/Desktop/tmp/webm/EN_UHDL_Bn_Ftr_In_00000.webm.txt";
+//    auto path = "/Users/tangs/Desktop/未命名文件夹 2/webm/output.webm";
+//    auto path = "/Users/tangs/Desktop/未命名文件夹 2/webm/335/vp9-4M/coin_new__00000.webm";
     auto outPath = "/Users/tangs/Desktop/tmp/bmp/";
 
     set_debug_log_cb(print);
@@ -145,7 +176,8 @@ int main() {
     ifs.read(pChars, length);
     ifs.close();
 
-    Test2(pChars, length, outPath);
+    Test3(pChars, length);
+//    Test2(pChars, length, outPath);
 
     delete[] pChars;
 
