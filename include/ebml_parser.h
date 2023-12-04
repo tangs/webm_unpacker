@@ -14,6 +14,7 @@
 #include <memory>
 #include <stack>
 #include <tuple>
+#include <cstring>
 
 // 这段大小尾宏抄自 github.com/lordoffox/adata/blob/master/cpp/adata.hpp
 #ifndef _WIN32
