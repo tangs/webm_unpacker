@@ -3,21 +3,21 @@
 #include "xx_webm.h"
 
 struct WebmInfo {
-    struct xx::Webm webm;
+    xx::Webm webm;
     std::vector<std::vector<uint8_t>> frames;
     std::vector<bool> frameLoaded;
     vpx_codec_iface* iface{};
     vpx_codec_dec_cfg_t cfg{};
     vpx_codec_ctx_t ctx{};
     vpx_codec_ctx_t ctxAlpha{};
-    uint8_t const* rgbBuf = nullptr;
-    uint8_t const* aBuf = nullptr;
-    uint32_t rgbBufLen = 0;
-    uint32_t aBufLen = 0;
-    bool loadFinish = false;
-    int loadErrCode = 0;
-    bool flipY = false;
-    bool convertTo16BitTexture = false;
+    uint8_t const* rgbBuf{};
+    uint8_t const* aBuf{};
+    uint32_t rgbBufLen{};
+    uint32_t aBufLen{};
+    bool loadFinish{};
+    int loadErrCode{};
+    bool flipY{};
+    bool convertTo16BitTexture{};
     int skipFramesPerTimes{};
 };
 
@@ -54,8 +54,6 @@ int init_decoder(void* ptr) {
 }
 
 int init_load_webm(WebmInfo* info, uint8_t* data, int len) {
-//    auto result = std::make_unique<std::uint8_t[]>(len);
-//    memcpy(result.get(), data, len);
     if (int r = info->webm.LoadFromWebm(data, len)) {
         std::stringstream ss;
         ss << "load from webm fail: " << r;
